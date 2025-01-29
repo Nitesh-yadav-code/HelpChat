@@ -5,40 +5,65 @@ const api_secret = "xnsv5xfkzjqza4gmttz2nwhvcg34ky3mbw95fwz2tqhyjag558ukcvru8as5
 // const user_id = "user_2sCJYx6SvqH4MzUXh5GnEhgZAYA";
 
 
-
-
 export async function POST(request) {
-  const serverClient = StreamChat.getInstance(api_key, api_secret);
+  try {
+    if (!api_key || !api_secret) {
+      throw new Error("Missing API keys for StreamChat.");
+    }
 
-  function capitalize(str) {
-    return str.charAt(0).toUpperCase() + str.slice(1);
-  }
+    const serverClient = StreamChat.getInstance(api_key, api_secret);
+    const body = await request.json();
 
-  // Create User Token
-  const user = await request.json()
-  const token = serverClient.createToken(user.data.id);
-  console.log("NEw User Created", token)
-  const client = await clerkClient()
-  await serverClient.upsertUser({id: user.data.id})
+    if (!body || !body.data || !body.data.id) {
+      return new Response(JSON.stringify({ error: "User ID is required" }), { status: 400 });
+    }
 
-  await client.users.updateUserMetadata(user.data.id, {
-    publicMetadata: {
-      token: token,
-    },
-  })
+    const userId = body.data.id;
+    const token = serverClient.createToken(userId);
 
-  //Give access to the user to all channels
-  const slugs = ["java-discussion-new", "python-discussion-new", "javascript-discussion-new", "ruby-discussion-new", "lang-discussion-new", "test-discussion-new", "go-discussion-new"]
+    console.log("New User Token Created:", token);
 
-  slugs.forEach(async (Item)=>{
-    const channel = serverClient.channel('messaging', Item, {
-      image: 'https://getstream.io/random_png/?name=react',
-      name: capitalize(Item),
-      created_by_id: user.data.id,
+    // Ensure Clerk user exists
+    const user = await clerkClient.users.getUser(userId);
+    if (!user) {
+      return new Response(JSON.stringify({ error: "User not found in Clerk" }), { status: 404 });
+    }
+
+    // Store token in Clerk metadata
+    await clerkClient.users.updateUserMetadata(userId, {
+      publicMetadata: { token },
     });
 
-    await channel.create();
-    channel.addMembers([user.data.id]);
-  })
-  return Response.json({ message: 'Hello world' })
+    // Give access to discussion channels
+    const slugs = [
+      "java-discussion-new",
+      "python-discussion-new",
+      "javascript-discussion-new",
+      "ruby-discussion-new",
+      "lang-discussion-new",
+      "test-discussion-new",
+      "go-discussion-new",
+    ];
+
+    await Promise.all(
+      slugs.map(async (slug) => {
+        const channel = serverClient.channel('messaging', slug, {
+          image: 'https://getstream.io/random_png/?name=react',
+          name: slug.replace("-", " ").toUpperCase(),
+          created_by_id: userId,
+        });
+
+        await channel.create();
+        await channel.addMembers([userId]);
+      })
+    );
+
+    return new Response(JSON.stringify({ message: 'User registered successfully', token }), {
+      status: 200,
+    });
+
+  } catch (error) {
+    console.error("Error:", error);
+    return new Response(JSON.stringify({ error: error.message }), { status: 500 });
+  }
 }
