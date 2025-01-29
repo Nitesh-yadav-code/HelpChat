@@ -1,9 +1,8 @@
 import { StreamChat } from 'stream-chat';
 import { clerkClient } from '@clerk/nextjs/server'
-const api_key = "uh79xww4bqcb";
-const api_secret = "xnsv5xfkzjqza4gmttz2nwhvcg34ky3mbw95fwz2tqhyjag558ukcvru8as5eraa";
+const api_key = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+const api_secret = process.env.CLERK_SECRET_KEY;
 // const user_id = "user_2sCJYx6SvqH4MzUXh5GnEhgZAYA";
-
 
 
 
